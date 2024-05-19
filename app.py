@@ -3,35 +3,64 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from Bio import Phylo
+from io import StringIO
+
 
 # Set page configuration
 st.set_page_config(page_title="Neighbor Joining", page_icon='🧬', layout='wide')
 
 # Function to generate text content for the download file
-def generate_text_content(matrix, J_matrix, min_value, min_indices, new_distances, updated_labels):
-    content = "Tree Distances and Groupings:\n\n"
+def generate_text_content(matrix, tree, labels):
+    content = "Phylogenetic tree\n\n"
     
-    # Add information about the J matrix
-    content += "J Matrix:\n"
-    content += str(pd.DataFrame(J_matrix, columns=[f'Seq {i+1}' for i in range(len(J_matrix))], index=[f'Seq {i+1}' for i in range(len(J_matrix))])) + "\n\n"
+    # Add information about the distances between sequences
+    computed_pairs = set()  # Keep track of computed pairs
+    content += "Distances between sequences:\n"
+    for idx, label in enumerate(labels):
+        for idx2 in range(idx + 1, len(labels)):
+            pair = tuple(sorted([label, labels[idx2]]))
+            if pair not in computed_pairs:
+                distance = tree.distance(label, labels[idx2])
+                content += f"Distance from {label} to {labels[idx2]}: {distance}\n"
+                computed_pairs.add(pair)
     
-    # Add information about the minimum value in the J matrix
-    content += f"The minimum value in the J matrix is {min_value} at position ({min_indices[0][0]+1}, {min_indices[1][0]+1}).\n\n"
-    
-    # Add information about new distances
-    content += "New Distances:\n"
-    for idx, distance in enumerate(new_distances):
-        content += f"Distance from {updated_labels[idx]} to new node {chr(97 + idx)}: {distance}\n"
+    # Add information about the distances between nodes and other sequences
+    computed_node_pairs = set()  # Keep track of computed node-sequence pairs
+    for clade in tree.find_clades(order="level"):
+        if clade.name.startswith("node"):
+            node_label = clade.name.split()[1]
+            for label in labels:
+                pair = tuple(sorted([f"node {node_label}", label]))
+                if pair not in computed_node_pairs:
+                    distance = tree.distance(f"node {node_label}", label)
+                    content += f"Distance from node {node_label} to {label}: {distance}\n"
+                    computed_node_pairs.add(pair)
     
     return content
 
+
+# Function to draw the phylogenetic tree using BioPython
+def draw_tree(tree):
+    fig, ax = plt.subplots(figsize=(10, 8))
+    Phylo.draw(tree, axes=ax)
+    ax.axis('off')  # Turn off axis
+    st.pyplot(fig)
+
 # Recursive function for neighbor joining
-def neighbor_joining_recursive(matrix, node_label='a'):
+def neighbor_joining_recursive(matrix, labels, node_label='a', tree=None, parent_node=None):
     n = matrix.shape[0]
     
     if n == 2:
-        st.warning("The matrix size is 2x2. The recursion stops here.")
-        return
+        i, j = 0, 1
+        distance = matrix[i, j] / 2
+        clade_i = Phylo.Newick.Clade(name=labels[i], branch_length=distance)
+        clade_j = Phylo.Newick.Clade(name=labels[j], branch_length=distance)
+        clade = Phylo.Newick.Clade(name=f'node {node_label}', clades=[clade_i, clade_j])
+        if parent_node:
+            parent_node.clades.append(clade)
+        else:
+            tree = Phylo.Newick.Tree(root=clade)
+        return tree
     
     # Calculate the J matrix
     row_sums = np.sum(matrix, axis=1)
@@ -55,6 +84,18 @@ def neighbor_joining_recursive(matrix, node_label='a'):
             new_distance = 0.5 * (matrix[i, k] + matrix[j, k] - matrix[i, j])
             new_distances.append(new_distance)
 
+    # Create a new node in the tree
+    distance_i = 0.5 * (matrix[i, j] + (row_sums[i] - row_sums[j]) / (n - 2))
+    distance_j = matrix[i, j] - distance_i
+    clade_i = Phylo.Newick.Clade(name=labels[i], branch_length=distance_i)
+    clade_j = Phylo.Newick.Clade(name=labels[j], branch_length=distance_j)
+    new_clade = Phylo.Newick.Clade(name=f'node {node_label}', clades=[clade_i, clade_j])
+
+    if tree is None:
+        tree = Phylo.Newick.Tree(root=new_clade)
+    else:
+        parent_node.clades.append(new_clade)
+
     # Update the distance matrix
     indices_to_keep = [idx for idx in range(n) if idx != i and idx != j]
     new_matrix = matrix[indices_to_keep, :][:, indices_to_keep]
@@ -63,21 +104,10 @@ def neighbor_joining_recursive(matrix, node_label='a'):
     new_matrix = np.column_stack([new_matrix, new_col])
 
     # Update sequence labels
-    updated_labels = [f'Seq {k+1}' for k in indices_to_keep] + [f'node {node_label}']
-    
-    # Display the updated distance matrix
-    st.write("The updated distance matrix is:")
-    new_df = pd.DataFrame(new_matrix, columns=updated_labels, index=updated_labels)
-    st.dataframe(new_df)
-    
-    # Generate text content for download
-    text_content = generate_text_content(matrix, J_matrix, min_value, min_indices, new_distances, updated_labels)
-    
-    # Add a download button
-    st.sidebar.download_button("Download Tree Distances", data=text_content, file_name='tree_distances.txt', mime='text/plain')
-    
+    updated_labels = [labels[k] for k in indices_to_keep] + [f'node {node_label}']
+
     # Recursively call the function with the updated matrix and next node label
-    neighbor_joining_recursive(new_matrix, chr(ord(node_label) + 1))
+    return neighbor_joining_recursive(new_matrix, updated_labels, chr(ord(node_label) + 1), tree, new_clade)
 
 st.title("Neighbor Joining Distance Matrix")
 
@@ -85,7 +115,8 @@ st.title("Neighbor Joining Distance Matrix")
 with st.sidebar:
     st.header("Inputs")
     
-    # Step 1: User input for the distance matrix
+    # Step 1: User
+    # input for the distance matrix
     st.subheader("Step 1: Enter the distance matrix")
     matrix_input = st.text_area("Paste the distance matrix here (rows separated by newlines and values by spaces or commas):")
 
@@ -97,14 +128,37 @@ if matrix_input:
         # Validate that the matrix is square
         if matrix.shape[0] != matrix.shape[1]:
             st.error("The provided matrix is not square. Please ensure you enter a valid distance matrix.")
+         # Validate that the diagonal elements are all zeros
+        elif not np.all(np.diag(matrix) == 0):
+            st.error("The diagonal elements of the matrix should all be zeros. Please ensure you enter a valid distance matrix.")
+        # Validate that the values below the diagonal are symmetric with the values above the diagonal
+        elif not np.allclose(matrix, matrix.T, atol=1e-8):
+            st.error("The values below the diagonal are not symmetric with the values above the diagonal. Please ensure you enter a valid distance matrix.")
         else:
-            # Display the initial distance matrix
-            st.write("The initial distance matrix is:")
-            df = pd.DataFrame(matrix, columns=[f'Seq {i+1}' for i in range(matrix.shape[0])], index=[f'Seq {i+1}' for i in range(matrix.shape[0])])
-            st.dataframe(df)
-            
-            # Start the neighbor joining process recursively
-            neighbor_joining_recursive(matrix)
+            col1, col2 = st.columns(2)
+            with col1:
+                # Display the initial distance matrix
+                st.subheader("The initial distance matrix is:")
+                df = pd.DataFrame(matrix, columns=[f'Seq {i+1}' for i in range(matrix.shape[0])], index=[f'Seq {i+1}' for i in range(matrix.shape[0])])
+                st.dataframe(df)
+                
+                # Initialize labels
+                labels = [f'Seq {i+1}' for i in range(matrix.shape[0])]
+                
+                # Start the neighbor joining process recursively
+                tree = neighbor_joining_recursive(matrix, labels)
+
+            with col2:
+                # Draw the final tree
+                if tree:
+                    st.subheader("Phylogenetic Tree")
+                    draw_tree(tree)
+                
+            # Generate text content for download
+            text_content = generate_text_content(matrix, tree, labels)
+
+            # Add a download button
+            st.sidebar.download_button("Download Tree Distances", data=text_content, file_name='tree_distances.txt', mime='text/plain')
 
     except ValueError:
         st.error("There was an error processing the matrix. Please ensure all values are numerical and the matrix format is correct.")
