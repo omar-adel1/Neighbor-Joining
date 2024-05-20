@@ -1,0 +1,39 @@
+Neighbor Joining Tree:
+Tree distances between sequences:
+Alpha   0.000000
+Beta    0.182692    0.000000
+Gamma   0.115385    0.115385    0.000000
+Delta   0.076923    0.115385    0.076923    0.000000
+Epsilon 0.051282    0.102564    0.076923    0.076923    0.000000
+    Alpha   Beta    Gamma   Delta   Epsilon
+
+Grouping of nodes to parents:
+Inner3 -> [Clade(branch_length=0.0244391025639875, name='Inner1'), Clade(branch_length=0.011618589743487506, name='Inner2'), Clade(branch_length=0.026842948718062504, name='Delta')]
+Inner1 -> [Clade(branch_length=0.005876068376066662, name='Epsilon'), Clade(branch_length=0.045405982906033336, name='Alpha')]
+Epsilon -> []
+Alpha -> []
+Inner2 -> [Clade(branch_length=0.0364583333335375, name='Gamma'), Clade(branch_length=0.0789262820514625, name='Beta')]
+Gamma -> []
+Beta -> []
+Delta -> []
+
+
+UPGMA Tree:
+Tree distances between sequences:
+Alpha   0.000000
+Beta    0.182692    0.000000
+Gamma   0.115385    0.115385    0.000000
+Delta   0.076923    0.115385    0.076923    0.000000
+Epsilon 0.051282    0.102564    0.076923    0.076923    0.000000
+    Alpha   Beta    Gamma   Delta   Epsilon
+
+Grouping of nodes to parents:
+Inner4 -> [Clade(branch_length=0.06450320512825, name='Beta'), Clade(branch_length=0.0260416666667, name='Inner3')]
+Beta -> []
+Inner3 -> [Clade(branch_length=0.0048076923077374975, name='Inner2'), Clade(branch_length=0.0176282051282375, name='Inner1')]
+Inner2 -> [Clade(branch_length=0.03846153846155, name='Delta'), Clade(branch_length=0.03846153846155, name='Gamma')]
+Delta -> []
+Gamma -> []
+Inner1 -> [Clade(branch_length=0.02564102564105, name='Epsilon'), Clade(branch_length=0.02564102564105, name='Alpha')]
+Epsilon -> []
+Alpha -> []
